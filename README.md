@@ -108,6 +108,7 @@ from prevention.parameterized_queries import safe_query
 
 result = safe_query("SELECT * FROM users WHERE email = %s", (user_email,))
 ```
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting pull requests.
