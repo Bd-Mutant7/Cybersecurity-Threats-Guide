@@ -269,4 +269,121 @@ class WebApplicationFirewall:
             'total_requests': len(self.request_log),
             'blocked_ips': len(self.blocked_ips),
             'active_rate_limiters': {
-                'ip': len
+                'ip': len(self.rate_limiters['ip'].buckets),
+                'user': len(self.rate_limiters['user'].requests),
+                'endpoint': len(self.rate_limiters['endpoint'].counters)
+            }
+        }
+
+def demonstrate_rate_limiting():
+    """Demonstrate rate limiting in action"""
+    print("\n📊 Rate Limiting Demonstration")
+    print("="*60)
+    
+    # Test different rate limiters
+    limiters = [
+        ("Token Bucket", TokenBucketRateLimiter(5, 10)),
+        ("Sliding Window", SlidingWindowRateLimiter(5, 10)),
+        ("Fixed Window", FixedWindowRateLimiter(5, 10))
+    ]
+    
+    for name, limiter in limiters:
+        print(f"\n{name} Rate Limiter:")
+        print("-" * 30)
+        
+        key = "test_user"
+        for i in range(10):
+            allowed = limiter.is_allowed(key)
+            status = "✅" if allowed else "❌"
+            print(f"  Request {i+1:2d}: {status}")
+            time.sleep(0.5)  # Simulate request间隔
+    
+    # Demonstrate WAF
+    print("\n🛡️ Web Application Firewall Demo")
+    print("="*60)
+    
+    waf = WebApplicationFirewall()
+    
+    # Simulate normal requests
+    normal_requests = [
+        {'remote_addr': '192.168.1.100', 'path': '/home', 'user_id': 'user1'},
+        {'remote_addr': '192.168.1.101', 'path': '/api/data', 'user_id': 'user2'},
+        {'remote_addr': '192.168.1.102', 'path': '/login', 'user_id': 'user3'}
+    ]
+    
+    # Simulate malicious requests
+    malicious_requests = [
+        {'remote_addr': '10.0.0.1', 'path': '/search?q=" OR 1=1--', 'user_id': 'attacker1'},
+        {'remote_addr': '10.0.0.2', 'path': '/comment', 'user_id': 'attacker2', 'data': '<script>alert(1)</script>'},
+        {'remote_addr': '10.0.0.3', 'path': '/api', 'user_id': 'attacker3'}
+    ]
+    
+    # Simulate DDoS attack (many requests from same IP)
+    ddos_requests = [
+        {'remote_addr': '192.168.1.200', 'path': '/api/data', 'user_id': 'user4'}
+        for _ in range(150)  # 150 requests from same IP
+    ]
+    
+    print("\n[1] Testing normal requests:")
+    for req in normal_requests:
+        allowed, message = waf.process_request(req)
+        print(f"  {req['remote_addr']}: {message}")
+    
+    print("\n[2] Testing malicious requests:")
+    for req in malicious_requests:
+        allowed, message = waf.process_request(req)
+        print(f"  {req['remote_addr']}: {message}")
+    
+    print("\n[3] Simulating DDoS attack (150 requests from same IP):")
+    for i, req in enumerate(ddos_requests[:10]):  # Show first 10 for brevity
+        allowed, message = waf.process_request(req)
+        print(f"  Request {i+1}: {message}")
+    
+    # Show statistics
+    stats = waf.get_stats()
+    print(f"\n📈 WAF Statistics:")
+    print(f"  Total requests: {stats['total_requests']}")
+    print(f"  Blocked IPs: {stats['blocked_ips']}")
+    print(f"  Active rate limiters: {stats['active_rate_limiters']}")
+
+def main():
+    parser = argparse.ArgumentParser(description='Rate Limiting for DDoS Prevention')
+    parser.add_argument('--demo', action='store_true', help='Run demonstration')
+    parser.add_argument('--test-ip', help='Test specific IP with rate limiter')
+    parser.add_argument('--requests', type=int, default=20, help='Number of test requests')
+    
+    args = parser.parse_args()
+    
+    print("""
+    ╔═══════════════════════════════════════╗
+    ║     Rate Limiting for DDoS Prevention  ║
+    ║         FOR EDUCATIONAL USE ONLY       ║
+    ╚═══════════════════════════════════════╝
+    """)
+    
+    if args.demo:
+        demonstrate_rate_limiting()
+    elif args.test_ip:
+        limiter = TokenBucketRateLimiter(10, 60)  # 10 requests per minute
+        print(f"\nTesting rate limiting for IP: {args.test_ip}")
+        print("-" * 40)
+        
+        allowed = 0
+        denied = 0
+        
+        for i in range(args.requests):
+            if limiter.is_allowed(args.test_ip):
+                allowed += 1
+                status = "✅ ALLOWED"
+            else:
+                denied += 1
+                status = "❌ DENIED"
+            print(f"Request {i+1:2d}: {status}")
+            time.sleep(1)  # 1 second间隔
+        
+        print(f"\nSummary: {allowed} allowed, {denied} denied")
+    else:
+        print("Use --demo for demonstration or --test-ip <IP> for testing")
+
+if __name__ == "__main__":
+    main()
