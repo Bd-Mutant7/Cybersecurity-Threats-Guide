@@ -1,5 +1,3 @@
-# tools/requirements.txt
-
 # Network Security
 scapy==2.5.0
 dpkt==1.9.8
