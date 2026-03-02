@@ -206,3 +206,10 @@ fi
 
 echo ""
 echo "Setup completed at $(date)"
+
+# Update README statistics
+update_stats() {
+    echo "Updating README statistics..."
+    python3 scripts/update_readme_stats.py
+    echo "✓ Statistics updated"
+}
