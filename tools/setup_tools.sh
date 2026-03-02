@@ -1,10 +1,9 @@
 #!/bin/bash
-# tools/setup_tools.sh
 # Setup script for cybersecurity tools and dependencies
 
 echo "╔══════════════════════════════════════════════════╗"
 echo "║     Cybersecurity Tools Setup Script             ║"
-echo "║         FOR EDUCATIONAL USE ONLY                 ║"
+echo "║                                                  ║"
 echo "╚══════════════════════════════════════════════════╝"
 
 # Check if running as root
