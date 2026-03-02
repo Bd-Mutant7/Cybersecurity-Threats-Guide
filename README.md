@@ -27,6 +27,26 @@ This repository aims to provide cybersecurity professionals, developers, and ent
 - **Prevention techniques** with code examples
 - **Best practices** for implementation
 
+
+## 📊 Repository Statistics
+
+| Metric | Count |
+|--------|-------|
+| **Total Sections** | 3/6 |
+| **Total Topics** | 9+ |
+| **Python Scripts** | 41 |
+| **Shell Scripts** | 2 |
+| **Documentation Files** | 15 |
+| **Configuration Files** | 5 |
+| **Total Files** | 63 |
+| **Contributors** | 1 |
+| **Total Commits** | 61 |
+
+*Last updated: 2024-01-15 14:30:22 (Auto-updated via GitHub Actions)*
+
+![Progress](https://progress-bar.dev/50/?title=Sections%20Complete)
+
+
 ## REPOSITORY STRUCTURE
 ```markdown
 cybersecurity-threats-guide/
