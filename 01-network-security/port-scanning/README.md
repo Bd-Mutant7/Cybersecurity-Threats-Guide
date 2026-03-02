@@ -162,7 +162,7 @@ iptables -A INPUT -m recent --name KNOCK1 --rcheck --seconds 10 -j KNOCKING
 
 ---
 
-## 🔧 Common Scanning Tools (Educational Only)
+## 🔧 Common Scanning Tools 
 
 | Tool | Purpose | Detection Method |
 |------|----------|-----------------|
