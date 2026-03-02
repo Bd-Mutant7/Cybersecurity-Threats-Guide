@@ -406,3 +406,465 @@ surbl {
     enabled = true;
     symbols = {
         "SURBL_BLOCKED"
+        "SURBL_BLOCKED" = {
+            weight = 5.0;
+            description = "URL is listed in SURBL blocklist";
+        };
+    }
+}
+
+spamassassin {
+    enabled = true;
+    spamd_host = "localhost";
+    spamd_port = 783;
+    timeout = 5.0;
+}
+
+dkim {
+    enabled = true;
+    allow_username_mismatch = false;
+    symbol_ok = "DKIM_SIGNED";
+    symbol_allow = "DKIM_ALLOW";
+    symbol_reject = "DKIM_REJECT";
+    symbol_tempfail = "DKIM_TEMPFAIL";
+}
+
+spf {
+    enabled = true;
+    symbol_pass = "SPF_ALLOW";
+    symbol_fail = "SPF_DENY";
+    symbol_softfail = "SPF_SOFTFAIL";
+    symbol_neutral = "SPF_NEUTRAL";
+    symbol_none = "SPF_NA";
+    symbol_permerror = "SPF_PERMERROR";
+    symbol_temperror = "SPF_TEMPFAIL";
+}
+
+dmarc {
+    enabled = true;
+    symbol_pass = "DMARC_POLICY_ALLOW";
+    symbol_fail = "DMARC_POLICY_REJECT";
+    symbol_quarantine = "DMARC_POLICY_QUARANTINE";
+}
+
+# ============================================
+# Rate limiting
+# ============================================
+ratelimit {
+    enabled = true;
+    limits = {
+        # Limit per IP
+        ip = {
+            burst = 100;
+            rate = "50 / 1m";
+        }
+        # Limit per user
+        user = {
+            burst = 200;
+            rate = "100 / 1m";
+        }
+    }
+    symbols = {
+        "RATELIMITED" = {
+            weight = 3.0;
+            description = "Message rate limited";
+        }
+    }
+}
+
+# ============================================
+# Phishing detection
+# ============================================
+phishing {
+    enabled = true;
+    action = "reject";
+    symbols = {
+        "PHISHING" = {
+            weight = 10.0;
+            description = "Phishing attempt detected";
+        }
+    }
+}
+
+# ============================================
+# Attachments
+# ============================================
+mime_types {
+    enabled = true;
+    bad_extensions = [
+        ".exe", ".scr", ".bat", ".cmd", ".vbs",
+        ".js", ".jar", ".msi", ".ps1", ".dll"
+    ];
+    symbols = {
+        "BAD_ATTACHMENT" = {
+            weight = 5.0;
+            description = "Suspicious attachment type";
+        }
+    }
+}
+"""
+        return config
+    
+    def generate_spamassassin_rules(self):
+        """Generate SpamAssassin rules"""
+        rules = f"""
+# SpamAssassin Rules for Phishing Detection
+# Generated on {datetime.now()}
+
+# ============================================
+# Header rules
+# ============================================
+header PHISHING_URGENT Subject =~ /(urgent|immediate|asap|warning)/i
+describe PHISHING_URGENT Contains urgent language
+score PHISHING_URGENT 1.5
+
+header PHISHING_VERIFY Subject =~ /(verify|confirm|validate|update)/i
+describe PHISHING_VERIFY Asks for verification
+score PHISHING_VERIFY 1.5
+
+header PHISHING_ACCOUNT Subject =~ /(account|paypal|bank|amazon)/i
+describe PHISHING_ACCOUNT References account/financial
+score PHISHING_ACCOUNT 1.0
+
+# ============================================
+# From rules
+# ============================================
+header PHISHING_SPOOF From =~ /@(paypa[li]|amaz[o0]n|micr0s0ft|g00gle)/i
+describe PHISHING_SPOOF Spoofed domain name
+score PHISHING_SPOOF 3.0
+
+header PHISHING_FREE_TLD From =~ /@.*\.(tk|ml|ga|cf|gq|xyz|top|win)/i
+describe PHISHING_FREE_TLD Suspicious free TLD
+score PHISHING_FREE_TLD 2.0
+
+# ============================================
+# Body rules
+# ============================================
+body PHISHING_LINK eval:check_phishing_links()
+describe PHISHING_LINK Contains suspicious links
+score PHISHING_LINK 2.5
+
+body PHISHING_PASSWORD eval:check_password_request()
+describe PHISHING_PASSWORD Requests password
+score PHISHING_PASSWORD 3.0
+
+body PHISHING_CREDIT eval:check_credit_request()
+describe PHISHING_CREDIT Requests credit card
+score PHISHING_CREDIT 3.0
+
+body PHISHING_HTML eval:check_html_forms()
+describe PHISHING_HTML Contains HTML form
+score PHISHING_HTML 1.0
+
+# ============================================
+# URI rules
+# ============================================
+uri PHISHING_IP eval:check_ip_url()
+describe PHISHING_IP URL uses IP address
+score PHISHING_IP 2.0
+
+uri PHISHING_SHORTENER eval:check_url_shortener()
+describe PHISHING_SHORTENER Uses URL shortener
+score PHISHING_SHORTENER 1.5
+
+uri PHISHING_SUSPICIOUS_TLD eval:check_suspicious_tld()
+describe PHISHING_SUSPICIOUS_TLD Suspicious TLD in URL
+score PHISHING_SUSPICIOUS_TLD 2.0
+
+# ============================================
+# Attachment rules
+# ============================================
+header PHISHING_EXE Content-Type =~ /name=.*\.exe/i
+describe PHISHING_EXE Contains executable attachment
+score PHISHING_EXE 4.0
+
+header PHISHING_ZIP Content-Type =~ /name=.*\.zip/i
+describe PHISHING_ZIP Contains ZIP attachment
+score PHISHING_ZIP 2.0
+
+header PHISHING_DOCM Content-Type =~ /name=.*\.(docm|xlsm|pptm)/i
+describe PHISHING_DOCM Contains macro-enabled document
+score PHISHING_DOCM 3.0
+
+# ============================================
+# Combined rules
+# ============================================
+meta PHISHING_HIGH_SCORE (PHISHING_URGENT + PHISHING_VERIFY + PHISHING_ACCOUNT > 3)
+describe PHISHING_HIGH_SCORE High phishing probability
+score PHISHING_HIGH_SCORE 5.0
+
+meta PHISHING_CRITICAL (PHISHING_SPOOF && (PHISHING_PASSWORD || PHISHING_CREDIT))
+describe PHISHING_CRITICAL Critical phishing indicators
+score PHISHING_CRITICAL 8.0
+
+# ============================================
+# Plugin functions
+# ============================================
+loadplugin Mail::SpamAssassin::Plugin::URIDNSBL
+loadplugin Mail::SpamAssassin::Plugin::Phishing
+
+# ============================================
+# Whitelist
+# ============================================
+whitelist_from *@trusted-domain.com
+whitelist_from *@partner-company.com
+
+# ============================================
+# Blacklist
+# ============================================
+blacklist_from *@suspicious-domain.tk
+blacklist_from *@spammer.com
+"""
+        return rules
+    
+    def generate_postgrey_config(self):
+        """Generate Postgrey configuration for greylisting"""
+        config = f"""
+# Postgrey Configuration
+# Generated on {datetime.now()}
+
+# ============================================
+# Main configuration
+# ============================================
+OPTIONS="--inet=127.0.0.1:10023 --delay=300 --max-age=35"
+
+# ============================================
+# Whitelist clients
+# ============================================
+# /etc/postgrey/whitelist_clients
+192.168.0.0/16
+10.0.0.0/8
+172.16.0.0/12
+127.0.0.0/8
+::1
+
+# ============================================
+# Whitelist recipients
+# ============================================
+# /etc/postgrey/whitelist_recipients
+postmaster@*
+abuse@*
+mailer-daemon@*
+
+# ============================================
+# Auto-whitelist
+# ============================================
+AUTOWHITELIST_FILE="/var/lib/postgrey/autowhitelist.db"
+AUTOWHITELIST_WINDOW=30
+"""
+        return config
+    
+    def generate_opendkim_config(self):
+        """Generate OpenDKIM configuration"""
+        config = f"""
+# OpenDKIM Configuration
+# Generated on {datetime.now()}
+
+# ============================================
+# Base settings
+# ============================================
+Syslog                  yes
+SyslogSuccess           yes
+LogWhy                  yes
+
+UserID                  opendkim:opendkim
+UMask                   002
+
+Canonicalization        relaxed/simple
+Mode                    sv
+SubDomains              no
+
+# ============================================
+# Socket
+# ============================================
+Socket                  inet:8891@localhost
+
+# ============================================
+# Signing table
+# ============================================
+SigningTable            refile:/etc/opendkim/signing.table
+KeyTable                refile:/etc/opendkim/key.table
+KeyTable                refile:/etc/opendkim/key.table
+
+# ============================================
+# Internal hosts
+# ============================================
+InternalHosts           /etc/opendkim/trusted.hosts
+
+# ============================================
+# External ignore list
+# ============================================
+ExternalIgnoreList      refile:/etc/opendkim/trusted.hosts
+
+# ============================================
+# Oversigning
+# ============================================
+OversignHeaders         From
+OversignHeaders         Reply-To
+OversignHeaders         Subject
+OversignHeaders         Date
+OversignHeaders         To
+OversignHeaders         Cc
+OversignHeaders         Message-ID
+OversignHeaders         Resent-Date
+OversignHeaders         Resent-From
+OversignHeaders         Resent-To
+OversignHeaders         Resent-Cc
+OversignHeaders         In-Reply-To
+OversignHeaders         References
+OversignHeaders         List-Id
+OversignHeaders         List-Help
+OversignHeaders         List-Unsubscribe
+OversignHeaders         List-Subscribe
+OversignHeaders         List-Post
+OversignHeaders         List-Owner
+OversignHeaders         List-Archive
+
+# ============================================
+# Statistics
+# ============================================
+Statistics              /var/log/opendkim/opendkim.stats
+"""
+        return config
+    
+    def generate_domain_config(self, domain):
+        """Generate complete domain email security configuration"""
+        config = f"""
+# Domain Email Security Configuration for {domain}
+# Generated on {datetime.now()}
+
+# ============================================
+# DNS Records
+# ============================================
+
+# SPF Record (TXT)
+{domain}. IN TXT "{self.generate_spf_record(domain)}"
+
+# DKIM Record (TXT)
+default._domainkey.{domain}. IN TXT "{self.generate_dkim_record(domain)}"
+
+# DMARC Record (TXT)
+_dmarc.{domain}. IN TXT "{self.generate_dmarc_record(domain)}"
+
+# MX Records
+{domain}. IN MX 10 mail.{domain}.
+
+# ============================================
+# MTA-STS Policy
+# ============================================
+# File: .well-known/mta-sts.txt
+# Host: mta-sts.{domain}
+---
+version: STSv1
+mode: enforce
+mx: mail.{domain}
+max_age: 604800
+
+# ============================================
+# TLS Reporting
+# ============================================
+# TLSRPT Record (TXT)
+_smtp._tls.{domain}. IN TXT "v=TLSRPTv1; rua=mailto:tls-reports@{domain}"
+
+# ============================================
+# BIMI Record (optional)
+# ============================================
+default._bimi.{domain}. IN TXT "v=BIMI1; l=https://{domain}/logo.svg; a=https://{domain}/assertion.pem"
+
+# ============================================
+# Mail Server Configuration Checklist
+# ============================================
+
+## Required
+□ SPF record published
+□ DKIM keys generated and published
+□ DMARC policy configured (start with p=none, move to p=quarantine, then p=reject)
+□ MX records configured
+□ Reverse DNS (PTR) configured for mail server IP
+
+## Recommended
+□ MTA-STS configured
+□ TLS reporting enabled
+□ BIMI configured (for brand protection)
+□ ARC configured for email forwarding
+□ Greylisting enabled
+□ Rate limiting configured
+
+## Optional
+□ DANE TLSA records
+□ SMTP TLS reporting
+□ OpenPGP/ S/MIME for encryption
+"""
+        return config
+
+def main():
+    parser = argparse.ArgumentParser(description='Email Filter Configuration Generator')
+    parser.add_argument('--domain', help='Domain to generate configuration for')
+    parser.add_argument('--type', choices=['postfix', 'exim', 'sieve', 'rspamd', 'spamassassin', 'all'],
+                       default='all', help='Type of configuration to generate')
+    parser.add_argument('--output-dir', default='./email_filters', help='Output directory')
+    
+    args = parser.parse_args()
+    
+    print(f"""
+    {Fore.CYAN}╔═══════════════════════════════════════╗
+    ║     Email Filter Config Generator     ║
+    ║       Phishing Prevention Tool        ║
+    ║       FOR EDUCATIONAL USE ONLY        ║
+    ╚═══════════════════════════════════════╝{Style.RESET_ALL}
+    """)
+    
+    # Create output directory
+    os.makedirs(args.output_dir, exist_ok=True)
+    
+    config = EmailFilterConfig()
+    
+    if args.type in ['postfix', 'all']:
+        print(f"{Fore.CYAN}[*] Generating Postfix configuration...{Style.RESET_ALL}")
+        with open(f"{args.output_dir}/postfix_main.cf", 'w') as f:
+            f.write(config.generate_postfix_filters(args.domain or 'example.com'))
+        
+        with open(f"{args.output_dir}/header_checks", 'w') as f:
+            f.write(config.generate_header_checks())
+        print(f"{Fore.GREEN}  [✓] Postfix configuration generated{Style.RESET_ALL}")
+    
+    if args.type in ['exim', 'all']:
+        print(f"{Fore.CYAN}[*] Generating Exim configuration...{Style.RESET_ALL}")
+        with open(f"{args.output_dir}/exim_filters.conf", 'w') as f:
+            f.write(config.generate_exim_filters())
+        print(f"{Fore.GREEN}  [✓] Exim configuration generated{Style.RESET_ALL}")
+    
+    if args.type in ['sieve', 'all']:
+        print(f"{Fore.CYAN}[*] Generating Sieve filters...{Style.RESET_ALL}")
+        with open(f"{args.output_dir}/sieve_filters.sieve", 'w') as f:
+            f.write(config.generate_sieve_filters())
+        print(f"{Fore.GREEN}  [✓] Sieve filters generated{Style.RESET_ALL}")
+    
+    if args.type in ['rspamd', 'all']:
+        print(f"{Fore.CYAN}[*] Generating Rspamd configuration...{Style.RESET_ALL}")
+        with open(f"{args.output_dir}/rspamd.conf", 'w') as f:
+            f.write(config.generate_rspamd_config())
+        print(f"{Fore.GREEN}  [✓] Rspamd configuration generated{Style.RESET_ALL}")
+    
+    if args.type in ['spamassassin', 'all']:
+        print(f"{Fore.CYAN}[*] Generating SpamAssassin rules...{Style.RESET_ALL}")
+        with open(f"{args.output_dir}/spamassassin_rules.cf", 'w') as f:
+            f.write(config.generate_spamassassin_rules())
+        print(f"{Fore.GREEN}  [✓] SpamAssassin rules generated{Style.RESET_ALL}")
+    
+    if args.domain:
+        print(f"{Fore.CYAN}[*] Generating domain configuration for {args.domain}...{Style.RESET_ALL}")
+        with open(f"{args.output_dir}/{args.domain}_config.txt", 'w') as f:
+            f.write(config.generate_domain_config(args.domain))
+        print(f"{Fore.GREEN}  [✓] Domain configuration generated{Style.RESET_ALL}")
+    
+    print(f"\n{Fore.GREEN}[✓] All configurations saved to {args.output_dir}/{Style.RESET_ALL}")
+    print(f"\n{Fore.YELLOW}Next steps:{Style.RESET_ALL}")
+    print("1. Review generated configurations")
+    print("2. Test in staging environment")
+    print("3. Deploy to production gradually")
+    print("4. Monitor logs for false positives")
+    print("5. Adjust thresholds based on traffic patterns")
+
+if __name__ == "__main__":
+    main()
