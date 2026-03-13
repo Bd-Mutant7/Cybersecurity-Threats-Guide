@@ -209,8 +209,10 @@ class FirewallConfig:
     
     # ==================== GEOIP BLOCKING ====================
     
-    def setup_geoip_blocking(self, countries=['CN', 'RU', 'KP']):
+    def setup_geoip_blocking(self, countries=None):
         """Block traffic from specific countries (requires iptables geoip)"""
+        if countries is None:
+            countries = []
         print(f"\n{Fore.CYAN}🌍 Setting up GeoIP blocking for: {', '.join(countries)}{Style.RESET_ALL}")
         
         for country in countries:
@@ -224,8 +226,10 @@ class FirewallConfig:
     
     # ==================== PORT KNOCKING ====================
     
-    def setup_port_knocking(self, knock_ports=[1234, 2345, 3456], target_port=22):
+    def setup_port_knocking(self, knock_ports=None, target_port=22):
         """Setup port knocking sequence"""
+        if knock_ports is None:
+            knock_ports = []
         print(f"\n{Fore.CYAN}🔑 Setting up port knocking for SSH{Style.RESET_ALL}")
         
         # This is a simplified example - real port knocking is more complex

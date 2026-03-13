@@ -28,7 +28,7 @@ class PortKnockingServer:
     provide the correct knock sequence can access the protected service.
     """
     
-    def __init__(self, knock_sequence=[1234, 2345, 3456], target_port=22, 
+    def __init__(self, knock_sequence=None, target_port=22, 
                  timeout=30, interface='0.0.0.0', log_file="knock.log"):
         """
         Initialize port knocking server
@@ -40,6 +40,8 @@ class PortKnockingServer:
             interface: Interface to listen on
             log_file: Log file path
         """
+        if knock_sequence is None:
+            knock_sequence = []
         self.knock_sequence = knock_sequence
         self.target_port = target_port
         self.timeout = timeout
